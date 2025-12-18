@@ -5,10 +5,10 @@
   <title>Spectrahedra Visualizer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script>
-    // MathJax config BEFORE script load
+   
     window.MathJax = {
       tex: { inlineMath: [['\\(', '\\)'], ['$', '$']] },
-      startup: { typeset: false } // we will typeset manually
+      startup: { typeset: false }
     };
   </script>
   <script id="MathJax-script" defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
@@ -196,6 +196,9 @@
             <option value="voronoi">Voronoi</option>
           </select>
           <label for="showContour">Contour</label>
+
+
+          
           <input id="showContour" type="checkbox" checked>
           <label for="showGrid">Grid</label>
           <input id="showGrid" type="checkbox">
@@ -285,7 +288,7 @@
       showGrid: false,
       distMode: 'euclidean',
       heatMax: 25,
-      colorMode: 'heatmap', // 'heatmap' | 'rgb' | 'rgbSaturated' | 'voronoi'
+      colorMode: 'heatmap', 
       pan: { x: 0, y: 0 },
       zoom: 180,
       canvasSize: { w: 0, h: 0 },
@@ -310,10 +313,10 @@
     const ctx = canvas.getContext('2d');
     let renderScheduled = false;
 
-    // Ensure MathJax has initialized before first typeset
+    
     function typesetFormula() {
       const latex = distEquations[state.distMode] || "";
-      formulaBox.innerHTML = latex; // set LaTeX
+      formulaBox.innerHTML = latex; 
       if (window.MathJax && window.MathJax.typesetPromise) {
         MathJax.typesetPromise([formulaBox]).catch(err => console.log('MathJax error:', err));
       }
@@ -322,10 +325,10 @@
     function initMath() {
       if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
         MathJax.startup.promise.then(() => {
-          typesetFormula(); // initial typeset
+          typesetFormula(); 
         });
       } else {
-        // Fallback retry
+        
         setTimeout(initMath, 100);
       }
     }
@@ -367,7 +370,7 @@
       return `hsl(${hue}, 100%, 50%)`;
     }
 
-    // Utility: HSV to RGB (s,v in [0,1], h in degrees)
+    // HSV to RGB (s,v in [0,1], h in degrees)
     function hsvToRgb(h, s, v) {
       const c = v * s;
       const hp = ((h % 360) + 360) % 360 / 60;
@@ -409,7 +412,7 @@
       const pts = state.points;
       const n = Math.min(3, pts.length);
       if (n < 1 || n > 3) return heatColor(sumDistances(p), 0, Math.max(1, state.heatMax));
-      const hues = [0, 120, 240]; // R, G, B
+      const hues = [0, 120, 240]; 
       const weights = [];
       for (let i = 0; i < n; i++) {
         const d = dist(p, pts[i]);
@@ -430,7 +433,7 @@
       return hsvToRgb(hue, 1, 1);
     }
 
-    // Voronoi coloring helpers
+    // Voronoi coloring functions
     function nearestPointIndex(p) {
       const pts = state.points;
       if (pts.length === 0) return 0;
@@ -482,13 +485,13 @@
       ctx.restore();
     }
 
-    // High-quality Voronoi rendering: finer step fill + smooth boundary lines via marching squares on nearest-index field
+    // more voronoi functions
     function renderVoronoi() {
       const baseStep = state.heatStep;
-      const step = Math.max(2, Math.floor(baseStep / 2)); // finer grid for smoother regions
+      const step = Math.max(2, Math.floor(baseStep / 2)); // smaller grid
       const ptsCount = state.points.length;
 
-      // Region fill at finer resolution
+    
       ctx.save();
       for (let y = 0; y < state.canvasSize.h; y += step) {
         for (let x = 0; x < state.canvasSize.w; x += step) {
@@ -529,9 +532,9 @@
           const x = i * cell - cell/2;
           const y = j * cell - cell/2;
           const edges = [];
-          // Interpolate only when indices differ; approximate boundary position by equal-distance assumption
-          function interp(ax, ay, bx, by) {
-            // simple midpoint for visual smoothness; equal-distance point lies near mid for small cells
+         
+          function interp(ax, ay, bx, by) { // interpolation for voronoi
+            
             return { x: (ax + bx) * 0.5, y: (ay + by) * 0.5 };
           }
           if (f00 !== f10) edges.push(interp(x, y, x+cell, y));
@@ -846,7 +849,7 @@
       if (e.key === 'Delete' || e.key === 'Backspace') removePointBtn.click();
     });
 
-    // Start MathJax rendering once ready
+    
     initMath();
     render();
   </script>
