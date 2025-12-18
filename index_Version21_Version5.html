@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Spectrahedra Visualizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    // MathJax config BEFORE script load
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)'], ['$', '$']] },
+      startup: { typeset: false } // we will typeset manually
+    };
+  </script>
+  <script id="MathJax-script" defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+  <style>
+    :root {
+      --bg: #0b0b0d;
+      --panel: rgba(0,0,0,0.78);
+      --text: #e7e7ea;
+      --muted: #a9a9b6;
+      --border: #000000;
+      --grid: rgba(0,0,0,0.1);
+      --point: #000000;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      height: 100%;
+      overflow: hidden;
+    }
+    #canvas-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+    }
+    #panel {
+      position: absolute;
+      left: 50%;
+      bottom: 10px;
+      transform: translateX(-50%);
+      background: var(--panel);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      min-width: 820px;
+      max-width: 1140px;
+      display: grid;
+      gap: 8px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    label {
+      font-size: 14px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    input[type="range"] { width: 180px; }
+    input[type="number"], select {
+      min-width: 80px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #000000;
+      color: var(--text);
+      outline: none;
+    }
+    input[type="checkbox"] { transform: scale(1.05); accent-color: #888; }
+    button {
+      background: #000000;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 120ms ease;
+      user-select: none;
+    }
+    button:hover { filter: brightness(1.1); }
+    .small { padding: 5px 9px; font-size: 12px; }
+    #isoList {
+      max-height: 120px;
+      overflow-y: auto;
+      display: grid;
+      gap: 6px;
+    }
+    .iso-control {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.02);
+    }
+    .iso-label { width: 30px; }
+    .iso-slider { flex: 1 1 200px; min-width: 160px; }
+    .iso-number { width: 72px; }
+    .shade-group { display: flex; align-items: center; gap: 6px; margin-left: 10px; }
+    #hoverCoords {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: rgba(0,0,0,0.7);
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text);
+      pointer-events: none;
+    }
+    #formula {
+      position: absolute;
+      top: 10px;
+      right: 180px;
+      background: rgba(0,0,0,0.7);
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text);
+      pointer-events: none;
+      max-width: 520px;
+      text-align: right;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    mjx-container { color: #e7e7ea !important; }
+  </style>
+</head>
+<body>
+  <main id="canvas-container">
+    <canvas id="canvas"></canvas>
+    <div id="hoverCoords">x: 0.00, y: 0.00</div>
+    <div id="formula"></div>
+    <div id="panel">
+      <div class="row" style="justify-content: space-between; gap: 10px;">
+        <div class="row" style="flex:1; min-width:420px;">
+          <button id="addIso" class="small">Add iso</button>
+          <button id="addPoint" class="small">Add Point</button>
+          <button id="removePoint" class="small">Remove Point</button>
+          <button id="resetPoints" class="small">Reset</button>
+        </div>
+        <div class="row">
+          <label for="distMode">Distance</label>
+          <select id="distMode">
+            <option value="euclidean" selected>Euclidean</option>
+            <option value="manhattan">Manhattan</option>
+            <option value="chebyshev">Chebyshev</option>
+            <option value="minkowski3">Minkowski p=3</option>
+            <option value="minkowski4">Minkowski p=4</option>
+            <option value="minkowski1_5">Minkowski p=1.5</option>
+            <option value="minkowski0_5">Minkowski p=0.5</option>
+            <option value="minkowski5">Minkowski p=5</option>
+            <option value="braycurtis">Bray-Curtis</option>
+            <option value="lorentzian">Lorentzian</option>
+            <option value="canberra">Canberra</option>
+            <option value="cosine">Cosine</option>
+            <option value="sqeuclidean">Squared</option>
+            <option value="clark">Clark</option>
+            <option value="kulczynski">Kulczynski</option>
+            <option value="gower">Gower</option>
+            <option value="taxicab2">Taxicab²</option>
+            <option value="product">Product (|Δx|·|Δy|)</option>
+          </select>
+          <label for="heatRes">Heat res</label>
+          <select id="heatRes">
+            <option value="3">High</option>
+            <option value="6" selected>Medium</option>
+            <option value="10">Low</option>
+          </select>
+          <label for="heatMax">Heat max</label>
+          <input id="heatMax" type="number" min="0" max="25" step="0.5" value="25">
+          <label for="colorMode">Coloring</label>
+          <select id="colorMode">
+            <option value="heatmap" selected>Heatmap</option>
+            <option value="rgb">RGB</option>
+            <option value="rgbSaturated">RGB Saturated</option>
+            <option value="voronoi">Voronoi</option>
+          </select>
+          <label for="showContour">Contour</label>
+          <input id="showContour" type="checkbox" checked>
+          <label for="showGrid">Grid</label>
+          <input id="showGrid" type="checkbox">
+        </div>
+      </div>
+      <div id="isoList"></div>
+    </div>
+  </main>
+
+  <script>
+    // Distances
+    function euclidean(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+    function manhattan(a,b){ return Math.abs(a.x-b.x)+Math.abs(a.y-b.y); }
+    function chebyshev(a,b){ return Math.max(Math.abs(a.x-b.x), Math.abs(a.y-b.y)); }
+    function minkowski(a,b,p){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); return Math.pow(Math.pow(dx,p)+Math.pow(dy,p),1/p); }
+    function braycurtis(a,b){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); const denom=Math.abs(a.x)+Math.abs(b.x)+Math.abs(a.y)+Math.abs(b.y)+1e-9; return (dx+dy)/denom; }
+    function lorentzian(a,b){ return Math.log1p(Math.abs(a.x-b.x))+Math.log1p(Math.abs(a.y-b.y)); }
+    function canberra(a,b){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); return (dx/(Math.abs(a.x)+Math.abs(b.x)+1e-9)) + (dy/(Math.abs(a.y)+Math.abs(b.y)+1e-9)); }
+    function cosineDist(a,b){ const dot=a.x*b.x+a.y*b.y; const la=Math.hypot(a.x,a.y); const lb=Math.hypot(b.x,b.y); if(la===0||lb===0) return 1; return 1 - dot/(la*lb); }
+    function sqeuclidean(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
+    function clark(a,b){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); const ax=Math.abs(a.x), bx=Math.abs(b.x), ay=Math.abs(a.y), by=Math.abs(b.y); return Math.sqrt(Math.pow(dx/(ax+bx+1e-9),2)+Math.pow(dy/(ay+by+1e-9),2)); }
+    function kulczynski(a,b){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); return 0.5*((dx/(Math.max(Math.abs(a.x),Math.abs(b.x))+1e-9))+(dy/(Math.max(Math.abs(a.y),Math.abs(b.y))+1e-9))); }
+    function gower(a,b){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); const rx=Math.max(Math.abs(a.x),Math.abs(b.x),1); const ry=Math.max(Math.abs(a.y),Math.abs(b.y),1); return 0.5*(dx/rx + dy/ry); }
+    function taxicab2(a,b){ const dx=Math.abs(a.x-b.x), dy=Math.abs(a.y-b.y); return dx*dx + dy*dy + 2*(dx+dy); }
+    function productDist(a,b){ return Math.abs(a.x-b.x) * Math.abs(a.y-b.y); }
+
+    const distModes = {
+      euclidean,
+      manhattan,
+      chebyshev,
+      minkowski3: (a,b)=>minkowski(a,b,3),
+      minkowski4: (a,b)=>minkowski(a,b,4),
+      minkowski1_5: (a,b)=>minkowski(a,b,1.5),
+      minkowski0_5: (a,b)=>minkowski(a,b,0.5),
+      minkowski5: (a,b)=>minkowski(a,b,5),
+      braycurtis,
+      lorentzian,
+      canberra,
+      cosine: cosineDist,
+      sqeuclidean,
+      clark,
+      kulczynski,
+      gower,
+      taxicab2,
+      product: productDist
+    };
+
+    const distEquations = {
+      euclidean: "\\(d(p,q)=\\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}\\)",
+      manhattan: "\\(d(p,q)=|x_2-x_1|+|y_2-y_1|\\)",
+      chebyshev: "\\(d(p,q)=\\max(|x_2-x_1|,|y_2-y_1|)\\)",
+      minkowski3: "\\(d(p,q)=(|\\Delta x|^3+|\\Delta y|^3)^{1/3}\\)",
+      minkowski4: "\\(d(p,q)=(|\\Delta x|^4+|\\Delta y|^4)^{1/4}\\)",
+      minkowski1_5: "\\(d(p,q)=(|\\Delta x|^{1.5}+|\\Delta y|^{1.5})^{2/3}\\)",
+      minkowski0_5: "\\(d(p,q)=(|\\Delta x|^{0.5}+|\\Delta y|^{0.5})^{2}\\)",
+      minkowski5: "\\(d(p,q)=(|\\Delta x|^{5}+|\\Delta y|^{5})^{1/5}\\)",
+      braycurtis: "\\(d=\\dfrac{|\\Delta x|+|\\Delta y|}{|x_1|+|x_2|+|y_1|+|y_2|}\\)",
+      lorentzian: "\\(d=\\ln(1+|\\Delta x|)+\\ln(1+|\\Delta y|)\\)",
+      canberra: "\\(d=\\dfrac{|\\Delta x|}{|x_1|+|x_2|}+\\dfrac{|\\Delta y|}{|y_1|+|y_2|}\\)",
+      cosine: "\\(d=1-\\dfrac{p\\cdot q}{\\|p\\|\\,\\|q\\|}\\)",
+      sqeuclidean: "\\(d=(\\Delta x)^2+(\\Delta y)^2\\)",
+      clark: "\\(d=\\sqrt{\\big(\\tfrac{|\\Delta x|}{|x_1|+|x_2|}\\big)^2+\\big(\\tfrac{|\\Delta y|}{|y_1|+|y_2|}\\big)^2}\\)",
+      kulczynski: "\\(d=\\tfrac12\\Big(\\tfrac{|\\Delta x|}{\\max(|x_1|,|x_2|)}+\\tfrac{|\\Delta y|}{\\max(|y_1|,|y_2|)}\\Big)\\)",
+      gower: "\\(d=\\tfrac12\\Big(\\tfrac{|\\Delta x|}{\\max(|x_1|,|x_2|,1)}+\\tfrac{|\\Delta y|}{\\max(|y_1|,|y_2|,1)}\\Big)\\)",
+      taxicab2: "\\(d=(|\\Delta x|+|\\Delta y|)^2\\)",
+      product: "\\(d=|\\Delta x|\\,|\\Delta y|\\)"
+    };
+
+    function makeEquilateralTriangle(side=2) {
+      const h = Math.sqrt(3)/2 * side;
+      const yBottom = -h/3;
+      const yTop = 2*h/3;
+      const xOffset = side/2;
+      return [
+        { id: 1, x: -xOffset, y: yBottom },
+        { id: 2, x:  xOffset, y: yBottom },
+        { id: 3, x:  0,       y: yTop },
+      ];
+    }
+
+    const state = {
+      points: makeEquilateralTriangle(2),
+      selectedPointId: null,
+      isoValues: [{ id: 'main', value: 4, shade: true }],
+      heatStep: 6,
+      showContour: true,
+      showGrid: false,
+      distMode: 'euclidean',
+      heatMax: 25,
+      colorMode: 'heatmap', // 'heatmap' | 'rgb' | 'rgbSaturated' | 'voronoi'
+      pan: { x: 0, y: 0 },
+      zoom: 180,
+      canvasSize: { w: 0, h: 0 },
+      isDraggingPoint: false,
+    };
+
+    const canvas = document.getElementById('canvas');
+    const container = document.getElementById('canvas-container');
+    const isoListEl = document.getElementById('isoList');
+    const addIsoBtn = document.getElementById('addIso');
+    const heatResSelect = document.getElementById('heatRes');
+    const showContourChk = document.getElementById('showContour');
+    const showGridChk = document.getElementById('showGrid');
+    const distModeSel = document.getElementById('distMode');
+    const heatMaxInput = document.getElementById('heatMax');
+    const colorModeSel = document.getElementById('colorMode');
+    const addPointBtn = document.getElementById('addPoint');
+    const removePointBtn = document.getElementById('removePoint');
+    const resetPointsBtn = document.getElementById('resetPoints');
+    const hoverCoords = document.getElementById('hoverCoords');
+    const formulaBox = document.getElementById('formula');
+    const ctx = canvas.getContext('2d');
+    let renderScheduled = false;
+
+    // Ensure MathJax has initialized before first typeset
+    function typesetFormula() {
+      const latex = distEquations[state.distMode] || "";
+      formulaBox.innerHTML = latex; // set LaTeX
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        MathJax.typesetPromise([formulaBox]).catch(err => console.log('MathJax error:', err));
+      }
+    }
+
+    function initMath() {
+      if (window.MathJax && MathJax.startup && MathJax.startup.promise) {
+        MathJax.startup.promise.then(() => {
+          typesetFormula(); // initial typeset
+        });
+      } else {
+        // Fallback retry
+        setTimeout(initMath, 100);
+      }
+    }
+
+    function requestRender() {
+      if (renderScheduled) return;
+      renderScheduled = true;
+      requestAnimationFrame(() => { renderScheduled = false; render(); });
+    }
+
+    function worldToScreen(w) {
+      const cx = state.canvasSize.w / 2;
+      const cy = state.canvasSize.h / 2;
+      return { x: (w.x - state.pan.x) * state.zoom + cx, y: (w.y - state.pan.y) * state.zoom + cy };
+    }
+    function screenToWorld(s) {
+      const cx = state.canvasSize.w / 2;
+      const cy = state.canvasSize.h / 2;
+      return { x: (s.x - cx) / state.zoom + state.pan.x, y: (s.y - cy) / state.zoom + state.pan.y };
+    }
+
+    function resizeCanvas() {
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      state.canvasSize.w = rect.width;
+      state.canvasSize.h = rect.height;
+      requestRender();
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function dist(a,b) { return distModes[state.distMode](a,b); }
+    function sumDistances(p) { let sum = 0; for (const pt of state.points) sum += dist(p, pt); return sum; }
+
+    function heatColor(sum, minIso, maxIso) {
+      const t = Math.max(0, Math.min(1, (sum - minIso) / Math.max(1e-6, maxIso - minIso)));
+      const hue = 240 * t;
+      return `hsl(${hue}, 100%, 50%)`;
+    }
+
+    // Utility: HSV to RGB (s,v in [0,1], h in degrees)
+    function hsvToRgb(h, s, v) {
+      const c = v * s;
+      const hp = ((h % 360) + 360) % 360 / 60;
+      const x = c * (1 - Math.abs((hp % 2) - 1));
+      let r=0,g=0,b=0;
+      if (0 <= hp && hp < 1) { r=c; g=x; b=0; }
+      else if (1 <= hp && hp < 2) { r=x; g=c; b=0; }
+      else if (2 <= hp && hp < 3) { r=0; g=c; b=x; }
+      else if (3 <= hp && hp < 4) { r=0; g=x; b=c; }
+      else if (4 <= hp && hp < 5) { r=x; g=0; b=c; }
+      else if (5 <= hp && hp < 6) { r=c; g=0; b=x; }
+      const m = v - c;
+      r = Math.round((r + m) * 255);
+      g = Math.round((g + m) * 255);
+      b = Math.round((b + m) * 255);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // Old unsaturated RGB mixing (can become gray when far), valid only for <= 3 points
+    function rgbUnsaturatedColor(p) {
+      const pts = state.points;
+      if (pts.length < 1 || pts.length > 3) return heatColor(sumDistances(p), 0, Math.max(1, state.heatMax));
+      let d1=0, d2=0, d3=0;
+      if (pts[0]) d1 = dist(p, pts[0]);
+      if (pts[1]) d2 = dist(p, pts[1]);
+      if (pts[2]) d3 = dist(p, pts[2]);
+      const w1 = 1/(d1*d1 + 0.01);
+      const w2 = 1/(d2*d2 + 0.01);
+      const w3 = 1/(d3*d3 + 0.01);
+      const sumW = w1+w2+w3 || 1;
+      const r = Math.round(255 * (w1/sumW));
+      const g = Math.round(255 * (w2/sumW));
+      const b = Math.round(255 * (w3/sumW));
+      return `rgb(${r},${g},${b})`;
+    }
+
+    // Saturated RGB mixing via circular mean of hues (R=0°, G=120°, B=240°), valid only for <= 3 points
+    function rgbSaturatedColor(p) {
+      const pts = state.points;
+      const n = Math.min(3, pts.length);
+      if (n < 1 || n > 3) return heatColor(sumDistances(p), 0, Math.max(1, state.heatMax));
+      const hues = [0, 120, 240]; // R, G, B
+      const weights = [];
+      for (let i = 0; i < n; i++) {
+        const d = dist(p, pts[i]);
+        const w = 1 / ((d*d) + 1e-4);
+        weights.push(w);
+      }
+      let W = weights.reduce((a,b)=>a+b, 0);
+      if (W <= 0) W = 1;
+      let X = 0, Y = 0;
+      for (let i = 0; i < n; i++) {
+        const theta = (hues[i] * Math.PI) / 180;
+        const w = weights[i] / W;
+        X += w * Math.cos(theta);
+        Y += w * Math.sin(theta);
+      }
+      let hue = Math.atan2(Y, X) * 180 / Math.PI;
+      if (hue < 0) hue += 360;
+      return hsvToRgb(hue, 1, 1);
+    }
+
+    // Voronoi coloring helpers
+    function nearestPointIndex(p) {
+      const pts = state.points;
+      if (pts.length === 0) return 0;
+      let bestIdx = 0, bestD = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const d = dist(p, pts[i]);
+        if (d < bestD) { bestD = d; bestIdx = i; }
+      }
+      return bestIdx;
+    }
+    function voronoiHueForIndex(idx, n) {
+      if (n <= 0) return 0;
+      return (idx / n) * 360; // evenly spaced hues
+    }
+    function voronoiColor(p) {
+      const idx = nearestPointIndex(p);
+      const hue = voronoiHueForIndex(idx, state.points.length);
+      return hsvToRgb(hue, 1, 1);
+    }
+
+    function drawGrid() {
+      if (!state.showGrid) return;
+      const spacingWorld = 1;
+      ctx.save();
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim() || 'rgba(0,0,0,0.1)';
+      ctx.lineWidth = 1;
+      const topLeft = screenToWorld({x:0,y:0});
+      const bottomRight = screenToWorld({x:state.canvasSize.w,y:state.canvasSize.h});
+      const minX = Math.floor(topLeft.x / spacingWorld) * spacingWorld;
+      const maxX = Math.ceil(bottomRight.x / spacingWorld) * spacingWorld;
+      const minY = Math.floor(topLeft.y / spacingWorld) * spacingWorld;
+      const maxY = Math.ceil(bottomRight.y / spacingWorld) * spacingWorld;
+      for (let x = minX; x <= maxX; x += spacingWorld) {
+        const a = worldToScreen({x, y: minY});
+        const b = worldToScreen({x, y: maxY});
+        ctx.beginPath();
+        ctx.moveTo(Math.round(a.x)+0.5, a.y);
+        ctx.lineTo(Math.round(b.x)+0.5, b.y);
+        ctx.stroke();
+      }
+      for (let y = minY; y <= maxY; y += spacingWorld) {
+        const a = worldToScreen({x: minX, y});
+        const b = worldToScreen({x: maxX, y});
+        ctx.beginPath();
+        ctx.moveTo(a.x, Math.round(a.y)+0.5);
+        ctx.lineTo(b.x, Math.round(b.y)+0.5);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // High-quality Voronoi rendering: finer step fill + smooth boundary lines via marching squares on nearest-index field
+    function renderVoronoi() {
+      const baseStep = state.heatStep;
+      const step = Math.max(2, Math.floor(baseStep / 2)); // finer grid for smoother regions
+      const ptsCount = state.points.length;
+
+      // Region fill at finer resolution
+      ctx.save();
+      for (let y = 0; y < state.canvasSize.h; y += step) {
+        for (let x = 0; x < state.canvasSize.w; x += step) {
+          const w = screenToWorld({x: x + step/2, y: y + step/2});
+          const idx = nearestPointIndex(w);
+          const hue = voronoiHueForIndex(idx, ptsCount);
+          ctx.fillStyle = hsvToRgb(hue, 1, 1);
+          ctx.fillRect(x, y, step, step);
+        }
+      }
+      ctx.restore();
+
+      // Marching squares boundary overlay (anti-aliased smooth edges)
+      const cell = step;
+      const wCells = Math.ceil(state.canvasSize.w / cell) + 2;
+      const hCells = Math.ceil(state.canvasSize.h / cell) + 2;
+      const field = [];
+      for (let j = 0; j <= hCells; j++) {
+        field[j] = [];
+        for (let i = 0; i <= wCells; i++) {
+          const sx = i * cell - cell/2;
+          const sy = j * cell - cell/2;
+          const world = screenToWorld({x: sx, y: sy});
+          field[j][i] = nearestPointIndex(world);
+        }
+      }
+      ctx.save();
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2.5;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      for (let j = 0; j < hCells; j++) {
+        for (let i = 0; i < wCells; i++) {
+          const f00 = field[j][i];
+          const f10 = field[j][i+1];
+          const f01 = field[j+1][i];
+          const f11 = field[j+1][i+1];
+          const x = i * cell - cell/2;
+          const y = j * cell - cell/2;
+          const edges = [];
+          // Interpolate only when indices differ; approximate boundary position by equal-distance assumption
+          function interp(ax, ay, bx, by) {
+            // simple midpoint for visual smoothness; equal-distance point lies near mid for small cells
+            return { x: (ax + bx) * 0.5, y: (ay + by) * 0.5 };
+          }
+          if (f00 !== f10) edges.push(interp(x, y, x+cell, y));
+          if (f10 !== f11) edges.push(interp(x+cell, y, x+cell, y+cell));
+          if (f01 !== f11) edges.push(interp(x, y+cell, x+cell, y+cell));
+          if (f00 !== f01) edges.push(interp(x, y, x, y+cell));
+          if (edges.length === 2) {
+            ctx.beginPath(); ctx.moveTo(edges[0].x, edges[0].y); ctx.lineTo(edges[1].x, edges[1].y); ctx.stroke();
+          } else if (edges.length === 4) {
+            ctx.beginPath(); ctx.moveTo(edges[0].x, edges[0].y); ctx.lineTo(edges[1].x, edges[1].y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(edges[2].x, edges[2].y); ctx.lineTo(edges[3].x, edges[3].y); ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function renderHeatmap() {
+      const step = state.heatStep;
+      const minIso = Math.min(...state.isoValues.map(i=>i.value));
+      const maxIso = Math.max(minIso + 1e-6, Number(state.heatMax) || 25);
+
+      if (state.colorMode === 'voronoi') {
+        renderVoronoi();
+        return;
+      }
+
+      ctx.save();
+      for (let y = 0; y < state.canvasSize.h; y += step) {
+        for (let x = 0; x < state.canvasSize.w; x += step) {
+          const w = screenToWorld({x: x + step/2, y: y + step/2});
+          let color;
+          switch (state.colorMode) {
+            case 'heatmap':
+              color = heatColor(sumDistances(w), minIso, maxIso);
+              break;
+            case 'rgb':
+              // Only for <=3 points; otherwise fallback to heatmap
+              color = (state.points.length > 0 && state.points.length <= 3)
+                ? rgbUnsaturatedColor(w)
+                : heatColor(sumDistances(w), minIso, maxIso);
+              break;
+            case 'rgbSaturated':
+              // Only for <=3 points; otherwise fallback to heatmap
+              color = (state.points.length > 0 && state.points.length <= 3)
+                ? rgbSaturatedColor(w)
+                : heatColor(sumDistances(w), minIso, maxIso);
+              break;
+            default:
+              color = heatColor(sumDistances(w), minIso, maxIso);
+          }
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, step, step);
+        }
+      }
+      ctx.restore();
+    }
+
+    function shadeIso(isoValue, alpha=0.12) {
+      const cell = 6;
+      const wCells = Math.ceil(state.canvasSize.w / cell) + 2;
+      const hCells = Math.ceil(state.canvasSize.h / cell) + 2;
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+      for (let j = 0; j < hCells; j++) {
+        for (let i = 0; i < wCells; i++) {
+          const sx = i * cell;
+          const sy = j * cell;
+          const world = screenToWorld({x: sx + cell/2 - cell, y: sy + cell/2 - cell});
+          const val = sumDistances(world) - isoValue;
+          if (val <= 0) ctx.fillRect(sx - cell, sy - cell, cell, cell);
+        }
+      }
+      ctx.restore();
+    }
+
+    function renderIsoContourForIso(isoValue) {
+      const cell = 6;
+      const wCells = Math.ceil(state.canvasSize.w / cell) + 2;
+      const hCells = Math.ceil(state.canvasSize.h / cell) + 2;
+      const field = [];
+      for (let j = 0; j <= hCells; j++) {
+        field[j] = [];
+        for (let i = 0; i <= wCells; i++) {
+          const sx = i * cell - cell/2;
+          const sy = j * cell - cell/2;
+          const world = screenToWorld({x: sx, y: sy});
+          field[j][i] = sumDistances(world) - isoValue;
+        }
+      }
+      ctx.save();
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 3;
+      for (let j = 0; j < hCells; j++) {
+        for (let i = 0; i < wCells; i++) {
+          const f00 = field[j][i];
+          const f10 = field[j][i+1];
+          const f01 = field[j+1][i];
+          const f11 = field[j+1][i+1];
+          const x = i * cell - cell/2;
+          const y = j * cell - cell/2;
+          const edges = [];
+          function interp(ax, ay, bx, by, fa, fb) {
+            const denom = (fa - fb);
+            const t = denom === 0 ? 0.5 : fa / denom;
+            return { x: ax + t * (bx - ax), y: ay + t * (by - ay) };
+          }
+          if ((f00 > 0) !== (f10 > 0)) edges.push(interp(x, y, x+cell, y, f00, f10));
+          if ((f10 > 0) !== (f11 > 0)) edges.push(interp(x+cell, y, x+cell, y+cell, f10, f11));
+          if ((f01 > 0) !== (f11 > 0)) edges.push(interp(x, y+cell, x+cell, y+cell, f01, f11));
+          if ((f00 > 0) !== (f01 > 0)) edges.push(interp(x, y, x, y+cell, f00, f01));
+          if (edges.length === 2) {
+            ctx.beginPath(); ctx.moveTo(edges[0].x, edges[0].y); ctx.lineTo(edges[1].x, edges[1].y); ctx.stroke();
+          } else if (edges.length === 4) {
+            ctx.beginPath(); ctx.moveTo(edges[0].x, edges[0].y); ctx.lineTo(edges[1].x, edges[1].y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(edges[2].x, edges[2].y); ctx.lineTo(edges[3].x, edges[3].y); ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function renderIsoContours() {
+      if (!state.showContour) return;
+      for (const iso of state.isoValues) if (iso.shade) shadeIso(iso.value, 0.12);
+      for (const iso of state.isoValues) renderIsoContourForIso(iso.value);
+    }
+
+    function renderPoints() {
+      ctx.save();
+      for (const pt of state.points) {
+        const s = worldToScreen(pt);
+        const radius = (state.selectedPointId === pt.id) ? 6 : 3;
+        // Outer subtle halo
+        ctx.beginPath(); ctx.arc(s.x, s.y, radius * 2.2, 0, Math.PI*2); ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fill();
+        // Inner solid black point (as requested)
+        ctx.beginPath(); ctx.arc(s.x, s.y, radius, 0, Math.PI*2); ctx.fillStyle = '#000000'; ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, state.canvasSize.w, state.canvasSize.h);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, state.canvasSize.w, state.canvasSize.h);
+      renderHeatmap();
+      drawGrid();
+      renderIsoContours();
+      renderPoints();
+    }
+
+    function syncIsoValuesFromDOM() {
+      const controls = isoListEl.querySelectorAll('.iso-control');
+      const arr = [];
+      controls.forEach(ctrl => {
+        const slider = ctrl.querySelector('input[type="range"]');
+        const shadeChk = ctrl.querySelector('input[type="checkbox"]');
+        if (!slider) return;
+        let val = Number(slider.value);
+        if (!Number.isFinite(val)) val = 4;
+        arr.push({ id: ctrl.dataset.id, value: Math.max(0, Math.min(25, val)), shade: shadeChk?.checked ?? true });
+      });
+      if (arr.length === 0) arr.push({ id: 'main', value: 4, shade: true });
+      state.isoValues = arr;
+    }
+
+    function addIsoControl(value = 4) {
+      const id = String(Date.now() + Math.random());
+      const wrap = document.createElement('div');
+      wrap.className = 'iso-control';
+      wrap.dataset.id = id;
+
+      const label = document.createElement('label'); label.textContent = 'Iso'; label.className='iso-label';
+      const slider = document.createElement('input');
+      slider.type = 'range'; slider.min='0'; slider.max='25'; slider.step='1'; slider.value=String(value); slider.className='iso-slider';
+      const num = document.createElement('input');
+      num.type='number'; num.min='0'; num.max='25'; num.step='1'; num.value=String(value); num.className='iso-number';
+
+      const shadeGrp = document.createElement('div'); shadeGrp.className='shade-group';
+      const shadeLabel = document.createElement('label'); shadeLabel.textContent = 'Shade';
+      const shadeChk = document.createElement('input'); shadeChk.type='checkbox'; shadeChk.checked = true;
+      shadeGrp.appendChild(shadeLabel); shadeGrp.appendChild(shadeChk);
+
+      const del = document.createElement('button'); del.className='small'; del.textContent='Remove';
+      del.onclick = () => { isoListEl.removeChild(wrap); syncIsoValuesFromDOM(); requestRender(); };
+
+      function sync(val) {
+        const v = Math.max(0, Math.min(25, Number(val)));
+        slider.value = String(v);
+        num.value = String(v);
+        syncIsoValuesFromDOM();
+        requestRender();
+      }
+      slider.addEventListener('input', e => sync(e.target.value));
+      num.addEventListener('change', e => sync(e.target.value));
+      shadeChk.addEventListener('change', () => { syncIsoValuesFromDOM(); requestRender(); });
+
+      wrap.appendChild(label);
+      wrap.appendChild(slider);
+      wrap.appendChild(num);
+      wrap.appendChild(shadeGrp);
+      wrap.appendChild(del);
+      isoListEl.appendChild(wrap);
+      syncIsoValuesFromDOM();
+      requestRender();
+    }
+
+    // Init
+    addIsoControl(4);
+
+    addIsoBtn.addEventListener('click', () => addIsoControl(4));
+    heatResSelect.addEventListener('change', e => { state.heatStep = Number(e.target.value) || 6; requestRender(); });
+    showContourChk.addEventListener('change', e => { state.showContour = e.target.checked; requestRender(); });
+    showGridChk.addEventListener('change', e => { state.showGrid = e.target.checked; requestRender(); });
+
+    distModeSel.addEventListener('change', e => {
+      state.distMode = e.target.value;
+      typesetFormula(); // update equation with LaTeX
+      requestRender();
+    });
+    heatMaxInput.addEventListener('change', e => { state.heatMax = Number(e.target.value) || 25; requestRender(); });
+
+    colorModeSel.addEventListener('change', e => {
+      state.colorMode = e.target.value;
+      requestRender();
+    });
+
+    function addPointAt(worldPos) {
+      const nextId = (state.points.reduce((m,p)=>Math.max(m,p.id),0) || 0) + 1;
+      state.points.push({ id: nextId, x: worldPos.x, y: worldPos.y });
+      state.selectedPointId = nextId;
+      requestRender();
+    }
+
+    addPointBtn.addEventListener('click', () => addPointAt(screenToWorld({x: state.canvasSize.w/2, y: state.canvasSize.h/2})));
+    removePointBtn.addEventListener('click', () => {
+      if (state.selectedPointId != null) {
+        state.points = state.points.filter(p => p.id !== state.selectedPointId);
+        state.selectedPointId = null;
+        requestRender();
+      }
+    });
+    resetPointsBtn.addEventListener('click', () => {
+      state.points = makeEquilateralTriangle(2);
+      state.selectedPointId = null;
+      requestRender();
+    });
+
+    function pickPoint(worldPos, maxDist = 14 / state.zoom) {
+      let best = null, bestD = Infinity;
+      for (const p of state.points) {
+        const d = dist(worldPos, p);
+        if (d < bestD && d <= maxDist) { bestD = d; best = p; }
+      }
+      return best;
+    }
+
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+    canvas.addEventListener('pointerdown', e => {
+      const rect = canvas.getBoundingClientRect();
+      const screenPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const worldPos = screenToWorld(screenPos);
+      if (e.button === 0) {
+        const hit = pickPoint(worldPos);
+        state.selectedPointId = hit ? hit.id : null;
+        if (hit) {
+          state.isDraggingPoint = true;
+          canvas.setPointerCapture(e.pointerId);
+        } else {
+          addPointAt(worldPos);
+        }
+      }
+      requestRender();
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      const rect = canvas.getBoundingClientRect();
+      const screenPos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const worldPos = screenToWorld(screenPos);
+      hoverCoords.textContent = `x: ${worldPos.x.toFixed(2)}, y: ${worldPos.y.toFixed(2)}`;
+      if (!e.buttons) return;
+      if (!state.isDraggingPoint || state.selectedPointId == null) return;
+      const pt = state.points.find(p => p.id === state.selectedPointId);
+      if (pt) { pt.x = worldPos.x; pt.y = worldPos.y; requestRender(); }
+    });
+
+    canvas.addEventListener('pointerup', () => { state.isDraggingPoint = false; });
+    canvas.addEventListener('pointerleave', () => { state.isDraggingPoint = false; });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const scale = 1.6 / state.zoom;
+      state.pan.x += e.deltaX * scale;
+      state.pan.y += e.deltaY * scale;
+      requestRender();
+    }, { passive: false });
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const factor = e.key === 'ArrowUp' ? 1.12 : 1/1.12;
+        const newZoom = state.zoom * factor;
+        const centerScreen = {x: state.canvasSize.w/2, y: state.canvasSize.h/2};
+        const before = screenToWorld(centerScreen);
+        state.zoom = Math.max(0.25, Math.min(500, newZoom));
+        const after = screenToWorld(centerScreen);
+        state.pan.x += before.x - after.x;
+        state.pan.y += before.y - after.y;
+        requestRender();
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') removePointBtn.click();
+    });
+
+    // Start MathJax rendering once ready
+    initMath();
+    render();
+  </script>
+</body>
+</html>
